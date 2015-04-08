@@ -97,12 +97,12 @@ def train_w2v_model(model_name="MediaCloud_w2v"):
     # It can be helpful to create a meaningful model name and
     # save the model for later use. You can load it later using Word2Vec.load()
     model.save(model_name)
-    print(model.most_similar("presidente"))
+    print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 def train_d2v_model(model_name="MediaCloud_d2v"):
     model = Doc2Vec(sentence_gen(), size=100, window=8, min_count=5, workers=num_workers)
     model.save(model_name)
-    print(model.most_similar("presidente"))
+    print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
     model = word2vec. Word2Vec(text_gen(), size=100, window=8, min_count=5, workers=num_workers)
