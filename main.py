@@ -11,9 +11,12 @@ import pandas as pd
 import pymongo
 from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 from nltk.corpus import stopwords
+import nltk
 from gensim.models import word2vec
 import logging
 from string import punctuation
+import re
+import string
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', \
                     level=logging.INFO)
@@ -21,6 +24,7 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', \
 nltk.download('stopwords')
 sw = stopwords.words('portuguese') + list(string.punctuation)
 
+pattern = re.compile(r"[^a-zA-Z\s]")
 
 # Set values for various parameters
 num_features = 300  # Word vector dimensionality
@@ -72,6 +76,13 @@ def sentence_gen():
             frase = [w.strip(punctuation) for w in frase if w not in sw]
             yield frase
 
+def text_gen():
+    con = pymongo.MongoClient('localhost', port=27017)
+    col = con.word2vec.frases
+    for doc in col.find():
+        text = pattern.sub("", doc['cleaned_text'])
+        yield wordpunct_tokenize(text.lower().strip())
+
 
 def train_w2v_model(model_name="MediaCloud_w2v"):
     print("Training model...")
@@ -86,10 +97,17 @@ def train_w2v_model(model_name="MediaCloud_w2v"):
     # It can be helpful to create a meaningful model name and
     # save the model for later use. You can load it later using Word2Vec.load()
     model.save(model_name)
+    print(model.most_similar("presidente"))
 
 def train_d2v_model(model_name="MediaCloud_d2v"):
     model = Doc2Vec(sentence_gen(), size=100, window=8, min_count=5, workers=num_workers)
     model.save(model_name)
+    print(model.most_similar("presidente"))
+
+def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
+    model = word2vec. Word2Vec(text_gen(), size=100, window=8, min_count=5, workers=num_workers)
+    model.save(model_name)
+    print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 
 
@@ -97,5 +115,6 @@ def train_d2v_model(model_name="MediaCloud_d2v"):
 if __name__ == "__main__":
     pass
     #save_locally()
-    train_w2v_model()
+    #train_w2v_model()
+    train_w2v_model_per_article()
 
