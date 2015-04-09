@@ -13,6 +13,7 @@ from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 from nltk.corpus import stopwords
 import nltk
 from gensim.models.word2vec import Word2Vec
+from gensim.models.phrases import Phrases
 import logging
 from string import punctuation
 import re
@@ -24,7 +25,7 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', \
 nltk.download('stopwords')
 sw = stopwords.words('portuguese') + list(string.punctuation)
 
-pattern = re.compile(r"[^a-zA-Z\s]")
+pattern = re.compile(r"[^-a-zA-Z\s]")
 
 # Set values for various parameters
 num_features = 300  # Word vector dimensionality
@@ -71,50 +72,60 @@ def sentence_gen(limit=20e6):
     """
     con = pymongo.MongoClient('localhost', port=27017)
     col = con.word2vec.frases
-    for doc in col.find():
+    for doc in col.find({'frases': {'$exists': True}}, {'frases': 1, '_id': 0}, limit=limit):
         for frase in doc['frases']:
+            if frase == []:
+                continue
             frase = [w.strip(punctuation) for w in frase if w not in sw]
+            if frase == []:
+                continue
+            # print(frase)
+            # print(type(frase[0]))
             yield frase
+
 
 def text_gen(limit=2e6):
     con = pymongo.MongoClient('localhost', port=27017)
     col = con.word2vec.frases
-    for doc in col.find():
+    for doc in col.find({'cleaned_text': {'$exists': True}}, {'cleaned_text': 1, '_id': 0}, limit=limit):
         text = pattern.sub("", doc['cleaned_text'])
         yield wordpunct_tokenize(text.lower())
 
 
 def train_w2v_model(model_name="MediaCloud_w2v"):
     print("Training model...")
-    model = Word2Vec(sentence_gen(), workers=num_workers, \
-        size=num_features, min_count=min_word_count, \
-        window=context)
+    sentences = sentence_gen(500000)
+    model = Word2Vec(list(sentences), workers=num_workers, \
+                     size=num_features, min_count=min_word_count, \
+                     window=context, iter=3)
 
     # If you don't plan to train the model any further, calling
     # init_sims will make the model much more memory-efficient.
-    model.init_sims(replace=True)
+    # model.init_sims(replace=True)
 
     # It can be helpful to create a meaningful model name and
     # save the model for later use. You can load it later using Word2Vec.load()
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
+
 def train_d2v_model(model_name="MediaCloud_d2v"):
-    model = Doc2Vec(sentence_gen(), size=100, window=8, min_count=45, workers=num_workers)
+    sentences = sentence_gen(50000)
+    model = Doc2Vec(sentences, size=100, window=8, min_count=45, workers=num_workers)
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
+
 
 def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
-    model = Word2Vec(text_gen(10000), size=500, window=8, min_count=50, workers=num_workers)
+    sentences = list(text_gen(100000))
+    model = Word2Vec(sentences, size=500, window=8, min_count=50, workers=8)
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
-
-
 
 
 if __name__ == "__main__":
     pass
-    #save_locally()
-    # train_w2v_model()
-    train_w2v_model_per_article()
+    # save_locally()
+    train_w2v_model()
+    # train_w2v_model_per_article()
 
