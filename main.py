@@ -92,12 +92,14 @@ def text_gen(limit=2e6):
         yield wordpunct_tokenize(text.lower())
 
 
-def train_w2v_model(model_name="MediaCloud_w2v"):
+def train_w2v_model(model_name="MediaCloud_w2v", n=50000):
     print("Training model...")
-    sentences = sentence_gen(500000)
-    model = Word2Vec(list(sentences), workers=num_workers, \
+    model = Word2Vec(workers=num_workers, \
                      size=num_features, min_count=min_word_count, \
-                     window=context, iter=3)
+                     window=context, iter=3) # an empty model, no training
+    model.build_vocab(sentence_gen(n))  # can be a non-repeatable, 1-pass generator
+    model.train(sentence_gen(n))  # can be a non-repeatable, 1-pass generator
+
 
     # If you don't plan to train the model any further, calling
     # init_sims will make the model much more memory-efficient.
@@ -110,15 +112,17 @@ def train_w2v_model(model_name="MediaCloud_w2v"):
 
 
 def train_d2v_model(model_name="MediaCloud_d2v"):
-    sentences = sentence_gen(50000)
     model = Doc2Vec(sentences, size=100, window=8, min_count=45, workers=num_workers)
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 
-def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
-    sentences = list(text_gen(100000))
-    model = Word2Vec(sentences, size=500, window=8, min_count=50, workers=8)
+def train_w2v_model_per_article(model_name="MediaCloud_d2v", n=50000):
+    model = Word2Vec(workers=num_workers, \
+                     size=num_features, min_count=min_word_count, \
+                     window=context, iter=3) # an empty model, no training
+    model.build_vocab(text_gen(n))  # can be a non-repeatable, 1-pass generator
+    model.train(text_gen(n))  # can be a non-repeatable, 1-pass generator
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
@@ -126,6 +130,6 @@ def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
 if __name__ == "__main__":
     pass
     # save_locally()
-    train_w2v_model()
+    train_w2v_model(1e6)
     # train_w2v_model_per_article()
 
