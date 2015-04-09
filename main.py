@@ -12,7 +12,7 @@ import pymongo
 from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 from nltk.corpus import stopwords
 import nltk
-from gensim.models import word2vec
+from gensim.models.word2vec import Word2Vec
 import logging
 from string import punctuation
 import re
@@ -64,7 +64,7 @@ def save_locally():
     con.close()
 
 
-def sentence_gen():
+def sentence_gen(limit=20e6):
     """
     Carrega as frases da coleção local para treinamento do modelo do W2v
     :return:
@@ -76,17 +76,17 @@ def sentence_gen():
             frase = [w.strip(punctuation) for w in frase if w not in sw]
             yield frase
 
-def text_gen():
+def text_gen(limit=2e6):
     con = pymongo.MongoClient('localhost', port=27017)
     col = con.word2vec.frases
     for doc in col.find():
         text = pattern.sub("", doc['cleaned_text'])
-        yield wordpunct_tokenize(text.lower().strip())
+        yield wordpunct_tokenize(text.lower())
 
 
 def train_w2v_model(model_name="MediaCloud_w2v"):
     print("Training model...")
-    model = word2vec.Word2Vec(sentence_gen(), workers=num_workers, \
+    model = Word2Vec(sentence_gen(), workers=num_workers, \
         size=num_features, min_count=min_word_count, \
         window=context)
 
@@ -100,12 +100,12 @@ def train_w2v_model(model_name="MediaCloud_w2v"):
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 def train_d2v_model(model_name="MediaCloud_d2v"):
-    model = Doc2Vec(sentence_gen(), size=100, window=8, min_count=5, workers=num_workers)
+    model = Doc2Vec(sentence_gen(), size=100, window=8, min_count=45, workers=num_workers)
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
-    model = word2vec. Word2Vec(text_gen(), size=100, window=8, min_count=5, workers=num_workers)
+    model = Word2Vec(text_gen(10000), size=500, window=8, min_count=50, workers=num_workers)
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
@@ -115,6 +115,6 @@ def train_w2v_model_per_article(model_name="MediaCloud_d2v"):
 if __name__ == "__main__":
     pass
     #save_locally()
-    #train_w2v_model()
+    # train_w2v_model()
     train_w2v_model_per_article()
 
