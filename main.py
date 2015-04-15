@@ -189,7 +189,7 @@ def cluster_vectors(model, nwords, method='DBS'):
         n_clusters_ = ac.n_clusters
     elif method == 'KM':
         print("Computing MiniBatchKmeans clustering")
-        km = MiniBatchKMeans(n_clusters=30, batch_size=200).fit(X)
+        km = MiniBatchKMeans(n_clusters=600, batch_size=200).fit(X)
         labels = km.labels_
         n_clusters_ = len(km.cluster_centers_)
 
@@ -201,10 +201,15 @@ def cluster_vectors(model, nwords, method='DBS'):
     #       % metrics.adjusted_rand_score(labels_true, labels))
     # print("Adjusted Mutual Information: %0.3f"
     #       % metrics.adjusted_mutual_info_score(labels_true, labels))
-    print("Silhouette Coefficient: %0.3f"
-          % metrics.silhouette_score(X, labels, metric='sqeuclidean'))
+    # print("Silhouette Coefficient: %0.3f"
+    #       % metrics.silhouette_score(X, labels, metric='sqeuclidean'))
 
     return X, labels
+
+def extract_cluster(model, labels, label=1):
+    indices = [i for i in range(len(labels)) if labels[i] == label]
+    palavras = [model.index2word[i] for i in indices]
+    return palavras
 
 
 
@@ -219,4 +224,7 @@ if __name__ == "__main__":
     # draw_similarity_graph(g)
     ## Cluster analysis
     model = Word2Vec.load("MediaCloud_w2v")
-    cluster_vectors(model, 10000, 'AP')
+    X, labels = cluster_vectors(model, 200000, 'KM')
+
+    for i in range(10):
+        print(extract_cluster(model, labels, i))
