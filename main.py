@@ -12,12 +12,23 @@ import pymongo
 from nltk.tokenize import sent_tokenize, wordpunct_tokenize
 from nltk.corpus import stopwords
 import nltk
+import time
 from gensim.models.word2vec import Word2Vec
 from gensim.models.phrases import Phrases
 import logging
 from string import punctuation
 import re
 import string
+import matplotlib
+from matplotlib import  pyplot as plt
+from graph_tool.all import Graph, graph_draw
+from graph_tool.community import minimize_nested_blockmodel_dl, minimize_blockmodel_dl
+from graph_tool.draw import sfdp_layout, draw_hierarchy
+from itertools import combinations
+from sklearn.manifold import TSNE
+from sklearn.cluster import AffinityPropagation, DBSCAN, AgglomerativeClustering, MiniBatchKMeans
+from sklearn import metrics
+from itertools import cycle
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', \
                     level=logging.INFO)
@@ -35,34 +46,11 @@ context = 10  # Context window size
 downsampling = 1e-3  # Downsample setting for frequent words
 
 
-def querydb():
-    con = pymongo.MongoClient('localhost', port=27000)
-    db = con.MCDB
-    col = db.articles
-    for doc in col.find({"cleaned_text": {"$exists": True}}, {'cleaned_text': True, 'link': True, 'published': True}):
-        yield doc
-
 
 def get_phrases(doc):
     frases = sent_tokenize(doc['cleaned_text'])
     frases = [wordpunct_tokenize(frase.lower().strip().strip(punctuation)) for frase in frases if frase.strip()]
     return frases
-
-
-def save_locally():
-    con = pymongo.MongoClient('localhost', port=27017)
-    con.drop_database("word2vec")
-    col = con.word2vec.frases
-    count = 1
-    for doc in querydb():
-        if doc['cleaned_text'] == "":
-            continue
-        doc['frases'] = get_phrases(doc)
-        col.insert(doc)
-        if count % 1000 == 0:
-            print("saved {} documents".format(count))
-        count += 1
-    con.close()
 
 
 def sentence_gen(limit=20e6):
@@ -94,12 +82,15 @@ def text_gen(limit=2e6):
 
 def train_w2v_model(model_name="MediaCloud_w2v", n=50000):
     print("Training model...")
+    t0 = time.time()
     model = Word2Vec(workers=num_workers, \
                      size=num_features, min_count=min_word_count, \
-                     window=context, iter=3) # an empty model, no training
+                     window=context, iter=1) # an empty model, no training
     model.build_vocab(sentence_gen(n))  # can be a non-repeatable, 1-pass generator
+    print("Levou {} segundos para construir o vocabulário".format(time.time()-t0))
+    t0 = time.time()
     model.train(sentence_gen(n))  # can be a non-repeatable, 1-pass generator
-
+    print("Levou {} segundos para treinar o modelo".format(time.time()-t0))
 
     # If you don't plan to train the model any further, calling
     # init_sims will make the model much more memory-efficient.
@@ -118,18 +109,114 @@ def train_d2v_model(model_name="MediaCloud_d2v"):
 
 
 def train_w2v_model_per_article(model_name="MediaCloud_d2v", n=50000):
+    t0 = time.time()
     model = Word2Vec(workers=num_workers, \
                      size=num_features, min_count=min_word_count, \
                      window=context, iter=3) # an empty model, no training
     model.build_vocab(text_gen(n))  # can be a non-repeatable, 1-pass generator
+    print("Levou {} segundos para construir o vocabulário".format(time.time()-t0))
+    t0 = time.time()
     model.train(text_gen(n))  # can be a non-repeatable, 1-pass generator
+    print("Levou {} segundos para treinar o modelo".format(time.time()-t0))
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
+
+
+def build_word_graph(model_fname, limiar=0.2):
+    """
+    Constroi um grafo de walavras ponderado pela similaridade entre elas
+    de acordo com o modelo.
+    :param model_fname: Nome do arquivo com o modelo word2vec como foi salvo
+    :return: objeto grafo
+    """
+    m = Word2Vec.load(model_fname)
+    g = Graph()
+    freq = g.new_vertex_property("int")
+    weight = g.new_edge_property("float")
+    i = 0
+    vdict = {}
+    for w1, w2 in combinations(m.vocab.keys(), 2):
+        if w1 == '' or w2 == '':
+            continue
+        # print(w1,w2)
+
+        v1 = g.add_vertex() if w1 not in vdict else vdict[w1]
+        vdict[w1] = v1
+        freq[v1] = m.vocab[w1].count
+        v2 = g.add_vertex() if w2 not in vdict else vdict[w2]
+        vdict[w2] = v2
+        freq[v2] = m.vocab[w2].count
+        sim = m.similarity(w1, w2)
+        if sim > 0.1:
+            e = g.add_edge(v1, v2)
+            weight[e] = sim
+        if i > 10000:
+            break
+        i += 1
+    g.vertex_properties['freq'] = freq
+    g.edge_properties['sim'] = weight
+    return g
+
+
+def draw_similarity_graph(g):
+    state = minimize_blockmodel_dl(g)
+    b = state.b
+    pos = sfdp_layout(g, eweight=g.edge_properties['sim'])
+    graph_draw(g, pos, output_size=(1000, 1000), vertex_color=[1, 1, 1, 0],
+               vertex_size=g.vertex_properties['freq'], edge_pen_width=1.2,
+               vcmap=matplotlib.cm.gist_heat_r, output="word_similarity.png")
+
+    state = minimize_blockmodel_dl(g)
+    graph_draw(g, pos=pos, vertex_fill_color=b, vertex_shape=b, output="blocks_mdl.png")
+
+def cluster_vectors(model, nwords, method='DBS'):
+    print("Calculating Clusters.")
+    X = model.syn0[:nwords, :]
+    if method == 'AP':
+        af = AffinityPropagation(copy=False).fit(X)
+        cluster_centers_indices = af.cluster_centers_indices_
+        labels = af.labels_
+        n_clusters_ = len(set(labels))
+    elif method == 'DBS':
+        print("Computing DBSCAN")
+        db = DBSCAN(eps=0.03, min_samples=5, algorithm='brute', metric='cosine').fit(X)
+        labels = db.labels_
+        n_clusters_ = len(set(labels))
+    elif method == 'AC':
+        print("Computing Agglomerative Clustering")
+        ac = AgglomerativeClustering(10).fit(X)
+        labels = ac.labels_
+        n_clusters_ = ac.n_clusters
+    elif method == 'KM':
+        print("Computing MiniBatchKmeans clustering")
+        km = MiniBatchKMeans(n_clusters=30, batch_size=200).fit(X)
+        labels = km.labels_
+        n_clusters_ = len(km.cluster_centers_)
+
+    print('Estimated number of clusters: %d' % n_clusters_)
+    # print("Homogeneity: %0.3f" % metrics.homogeneity_score(labels_true, labels))
+    # print("Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
+    # print("V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
+    # print("Adjusted Rand Index: %0.3f"
+    #       % metrics.adjusted_rand_score(labels_true, labels))
+    # print("Adjusted Mutual Information: %0.3f"
+    #       % metrics.adjusted_mutual_info_score(labels_true, labels))
+    print("Silhouette Coefficient: %0.3f"
+          % metrics.silhouette_score(X, labels, metric='sqeuclidean'))
+
+    return X, labels
+
 
 
 if __name__ == "__main__":
     pass
     # save_locally()
-    train_w2v_model(1e6)
+    # train_w2v_model(n=1000000)
     # train_w2v_model_per_article()
-
+    ## doing graph analysis
+    # g = build_word_graph("MediaCloud_w2v")
+    # g.save("similarity_graph.xml.gz")
+    # draw_similarity_graph(g)
+    ## Cluster analysis
+    model = Word2Vec.load("MediaCloud_w2v")
+    cluster_vectors(model, 10000, 'AP')
