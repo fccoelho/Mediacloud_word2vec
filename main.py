@@ -14,6 +14,7 @@ from nltk.corpus import stopwords
 import nltk
 import time
 from gensim.models.word2vec import Word2Vec
+from gensim.models.doc2vec import Doc2Vec
 from gensim.models.phrases import Phrases
 import logging
 from string import punctuation
@@ -48,6 +49,11 @@ downsampling = 1e-3  # Downsample setting for frequent words
 
 
 def get_phrases(doc):
+    """
+    Quebra o texto limpo em frases
+    :param doc:
+    :return:
+    """
     frases = sent_tokenize(doc['cleaned_text'])
     frases = [wordpunct_tokenize(frase.lower().strip().strip(punctuation)) for frase in frases if frase.strip()]
     return frases
@@ -71,6 +77,14 @@ def sentence_gen(limit=20e6):
             # print(type(frase[0]))
             yield frase
 
+def bigram_gen(limit=20e6):
+    for sentence in sentence_gen(limit):
+        yield bigram[sentence]
+
+def trigram_gen(limit=20e6):
+    for sentence in sentence_gen(limit):
+        yield trigram[sentence]
+
 
 def text_gen(limit=2e6):
     con = pymongo.MongoClient('localhost', port=27017)
@@ -80,16 +94,24 @@ def text_gen(limit=2e6):
         yield wordpunct_tokenize(text.lower())
 
 
-def train_w2v_model(model_name="MediaCloud_w2v", n=50000):
+def train_w2v_model(model_name="MediaCloud_w2v", n=50000, ngram=1):
     print("Training model...")
     t0 = time.time()
+    if ngram == 2:
+        gen = bigram_gen
+        model_name += "_bigrams"
+    elif ngram == 3:
+        gen = trigram_gen
+        model_name += "_trigrams"
+    else:
+        gen = sentence_gen
     model = Word2Vec(workers=num_workers, \
                      size=num_features, min_count=min_word_count, \
                      window=context, iter=1) # an empty model, no training
-    model.build_vocab(sentence_gen(n))  # can be a non-repeatable, 1-pass generator
+    model.build_vocab(gen(n))  # can be a non-repeatable, 1-pass generator
     print("Levou {} segundos para construir o vocabulário".format(time.time()-t0))
     t0 = time.time()
-    model.train(sentence_gen(n))  # can be a non-repeatable, 1-pass generator
+    model.train(gen(n))  # can be a non-repeatable, 1-pass generator
     print("Levou {} segundos para treinar o modelo".format(time.time()-t0))
 
     # If you don't plan to train the model any further, calling
@@ -189,7 +211,7 @@ def cluster_vectors(model, nwords, method='DBS'):
         n_clusters_ = ac.n_clusters
     elif method == 'KM':
         print("Computing MiniBatchKmeans clustering")
-        km = MiniBatchKMeans(n_clusters=600, batch_size=200).fit(X)
+        km = MiniBatchKMeans(n_clusters=300, batch_size=200).fit(X)
         labels = km.labels_
         n_clusters_ = len(km.cluster_centers_)
 
@@ -215,8 +237,13 @@ def extract_cluster(model, labels, label=1):
 
 if __name__ == "__main__":
     pass
+    ## Treina MOdelos
     # save_locally()
-    # train_w2v_model(n=1000000)
+    print("Calculating Bigrams")
+    bigram = Phrases(sentence_gen(100000))
+    print("Calculating Tigrams")
+    trigram = Phrases(bigram[sentence_gen(100000)])
+    train_w2v_model(n=1000000, ngram=2)
     # train_w2v_model_per_article()
     ## doing graph analysis
     # g = build_word_graph("MediaCloud_w2v")
@@ -226,5 +253,5 @@ if __name__ == "__main__":
     model = Word2Vec.load("MediaCloud_w2v")
     X, labels = cluster_vectors(model, 200000, 'KM')
 
-    for i in range(10):
+    for i in range(20):
         print(extract_cluster(model, labels, i))
