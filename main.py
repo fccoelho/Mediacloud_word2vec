@@ -21,7 +21,7 @@ from string import punctuation
 import re
 import string
 import matplotlib
-from matplotlib import  pyplot as plt
+from matplotlib import pyplot as plt
 from graph_tool.all import Graph, graph_draw
 from graph_tool.community import minimize_nested_blockmodel_dl, minimize_blockmodel_dl
 from graph_tool.draw import sfdp_layout, draw_hierarchy
@@ -45,7 +45,6 @@ min_word_count = 40  # Minimum word count
 num_workers = 8  # Number of threads to run in parallel
 context = 10  # Context window size
 downsampling = 1e-3  # Downsample setting for frequent words
-
 
 
 def get_phrases(doc):
@@ -77,9 +76,11 @@ def sentence_gen(limit=20e6):
             # print(type(frase[0]))
             yield frase
 
+
 def bigram_gen(limit=20e6):
     for sentence in sentence_gen(limit):
         yield bigram[sentence]
+
 
 def trigram_gen(limit=20e6):
     for sentence in sentence_gen(limit):
@@ -107,12 +108,12 @@ def train_w2v_model(model_name="MediaCloud_w2v", n=50000, ngram=1):
         gen = sentence_gen
     model = Word2Vec(workers=num_workers, \
                      size=num_features, min_count=min_word_count, \
-                     window=context, iter=1) # an empty model, no training
+                     window=context, iter=1)  # an empty model, no training
     model.build_vocab(gen(n))  # can be a non-repeatable, 1-pass generator
-    print("Levou {} segundos para construir o vocabulário".format(time.time()-t0))
+    print("Levou {} segundos para construir o vocabulário".format(time.time() - t0))
     t0 = time.time()
     model.train(gen(n))  # can be a non-repeatable, 1-pass generator
-    print("Levou {} segundos para treinar o modelo".format(time.time()-t0))
+    print("Levou {} segundos para treinar o modelo".format(time.time() - t0))
 
     # If you don't plan to train the model any further, calling
     # init_sims will make the model much more memory-efficient.
@@ -134,12 +135,12 @@ def train_w2v_model_per_article(model_name="MediaCloud_d2v", n=50000):
     t0 = time.time()
     model = Word2Vec(workers=num_workers, \
                      size=num_features, min_count=min_word_count, \
-                     window=context, iter=3) # an empty model, no training
+                     window=context, iter=3)  # an empty model, no training
     model.build_vocab(text_gen(n))  # can be a non-repeatable, 1-pass generator
-    print("Levou {} segundos para construir o vocabulário".format(time.time()-t0))
+    print("Levou {} segundos para construir o vocabulário".format(time.time() - t0))
     t0 = time.time()
     model.train(text_gen(n))  # can be a non-repeatable, 1-pass generator
-    print("Levou {} segundos para treinar o modelo".format(time.time()-t0))
+    print("Levou {} segundos para treinar o modelo".format(time.time() - t0))
     model.save(model_name)
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
@@ -191,6 +192,7 @@ def draw_similarity_graph(g):
     state = minimize_blockmodel_dl(g)
     graph_draw(g, pos=pos, vertex_fill_color=b, vertex_shape=b, output="blocks_mdl.png")
 
+
 def cluster_vectors(model, nwords, method='DBS'):
     print("Calculating Clusters.")
     X = model.syn0[:nwords, :]
@@ -220,7 +222,7 @@ def cluster_vectors(model, nwords, method='DBS'):
     # print("Completeness: %0.3f" % metrics.completeness_score(labels_true, labels))
     # print("V-measure: %0.3f" % metrics.v_measure_score(labels_true, labels))
     # print("Adjusted Rand Index: %0.3f"
-    #       % metrics.adjusted_rand_score(labels_true, labels))
+    # % metrics.adjusted_rand_score(labels_true, labels))
     # print("Adjusted Mutual Information: %0.3f"
     #       % metrics.adjusted_mutual_info_score(labels_true, labels))
     # print("Silhouette Coefficient: %0.3f"
@@ -228,11 +230,18 @@ def cluster_vectors(model, nwords, method='DBS'):
 
     return X, labels
 
+
 def extract_cluster(model, labels, label=1):
+    """
+
+    :param model: Word2vec model
+    :param labels: list with cluster labels attributed to each word in the model
+    :param label: label if the cluster to extract
+    :return:
+    """
     indices = [i for i in range(len(labels)) if labels[i] == label]
     palavras = [model.index2word[i] for i in indices]
     return palavras
-
 
 
 if __name__ == "__main__":
@@ -244,6 +253,7 @@ if __name__ == "__main__":
     print("Calculating Tigrams")
     trigram = Phrases(bigram[sentence_gen(100000)])
     train_w2v_model(n=1000000, ngram=2)
+    train_w2v_model(n=1000000, ngram=3)
     # train_w2v_model_per_article()
     ## doing graph analysis
     # g = build_word_graph("MediaCloud_w2v")
