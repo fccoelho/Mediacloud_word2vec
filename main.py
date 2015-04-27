@@ -22,9 +22,7 @@ import re
 import string
 import matplotlib
 from matplotlib import pyplot as plt
-from graph_tool.all import Graph, graph_draw
-from graph_tool.community import minimize_nested_blockmodel_dl, minimize_blockmodel_dl
-from graph_tool.draw import sfdp_layout, draw_hierarchy
+
 from itertools import combinations
 from sklearn.manifold import TSNE
 from sklearn.cluster import AffinityPropagation, DBSCAN, AgglomerativeClustering, MiniBatchKMeans
@@ -125,10 +123,10 @@ def train_w2v_model(model_name="MediaCloud_w2v", n=50000, ngram=1):
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 
-def train_d2v_model(model_name="MediaCloud_d2v"):
-    model = Doc2Vec(sentences, size=100, window=8, min_count=45, workers=num_workers)
-    model.save(model_name)
-    print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
+# def train_d2v_model(model_name="MediaCloud_d2v"):
+#     model = Doc2Vec(sentences, size=100, window=8, min_count=45, workers=num_workers)
+#     model.save(model_name)
+#     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 
 def train_w2v_model_per_article(model_name="MediaCloud_d2v", n=50000):
@@ -145,52 +143,7 @@ def train_w2v_model_per_article(model_name="MediaCloud_d2v", n=50000):
     print("Palavras mais similares a 'presidente':\n", model.most_similar("presidente"))
 
 
-def build_word_graph(model_fname, limiar=0.2):
-    """
-    Constroi um grafo de walavras ponderado pela similaridade entre elas
-    de acordo com o modelo.
-    :param model_fname: Nome do arquivo com o modelo word2vec como foi salvo
-    :return: objeto grafo
-    """
-    m = Word2Vec.load(model_fname)
-    g = Graph()
-    freq = g.new_vertex_property("int")
-    weight = g.new_edge_property("float")
-    i = 0
-    vdict = {}
-    for w1, w2 in combinations(m.vocab.keys(), 2):
-        if w1 == '' or w2 == '':
-            continue
-        # print(w1,w2)
 
-        v1 = g.add_vertex() if w1 not in vdict else vdict[w1]
-        vdict[w1] = v1
-        freq[v1] = m.vocab[w1].count
-        v2 = g.add_vertex() if w2 not in vdict else vdict[w2]
-        vdict[w2] = v2
-        freq[v2] = m.vocab[w2].count
-        sim = m.similarity(w1, w2)
-        if sim > 0.1:
-            e = g.add_edge(v1, v2)
-            weight[e] = sim
-        if i > 10000:
-            break
-        i += 1
-    g.vertex_properties['freq'] = freq
-    g.edge_properties['sim'] = weight
-    return g
-
-
-def draw_similarity_graph(g):
-    state = minimize_blockmodel_dl(g)
-    b = state.b
-    pos = sfdp_layout(g, eweight=g.edge_properties['sim'])
-    graph_draw(g, pos, output_size=(1000, 1000), vertex_color=[1, 1, 1, 0],
-               vertex_size=g.vertex_properties['freq'], edge_pen_width=1.2,
-               vcmap=matplotlib.cm.gist_heat_r, output="word_similarity.png")
-
-    state = minimize_blockmodel_dl(g)
-    graph_draw(g, pos=pos, vertex_fill_color=b, vertex_shape=b, output="blocks_mdl.png")
 
 
 def cluster_vectors(model, nwords, method='DBS'):
@@ -255,10 +208,7 @@ if __name__ == "__main__":
     # train_w2v_model(n=1000000, ngram=2)
     # train_w2v_model(n=1000000, ngram=3)
     # train_w2v_model_per_article()
-    ## doing graph analysis
-    # g = build_word_graph("MediaCloud_w2v")
-    # g.save("similarity_graph.xml.gz")
-    # draw_similarity_graph(g)
+
     ## Cluster analysis
     model = Word2Vec.load("MediaCloud_w2v")
     X, labels = cluster_vectors(model, 200000, 'KM')

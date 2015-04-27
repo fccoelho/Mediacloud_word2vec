@@ -15,6 +15,11 @@ import numpy as np
 import pymongo
 import re
 import time
+import matplotlib
+from itertools import combinations
+from graph_tool.all import Graph, graph_draw
+from graph_tool.community import minimize_nested_blockmodel_dl, minimize_blockmodel_dl
+from graph_tool.draw import sfdp_layout, draw_hierarchy
 
 
 pattern = re.compile(r"[^-a-zA-Z\s]")
@@ -127,7 +132,52 @@ def extract_clustered_docs(ids, labels, cluster_label):
             docs.append(d["cleaned_text"])
     return docs
 
+def build_word_graph(model_fname, limiar=0.2):
+    """
+    Constroi um grafo de walavras ponderado pela similaridade entre elas
+    de acordo com o modelo.
+    :param model_fname: Nome do arquivo com o modelo word2vec como foi salvo
+    :return: objeto grafo
+    """
+    m = Word2Vec.load(model_fname)
+    g = Graph()
+    freq = g.new_vertex_property("int")
+    weight = g.new_edge_property("float")
+    i = 0
+    vdict = {}
+    for w1, w2 in combinations(m.vocab.keys(), 2):
+        if w1 == '' or w2 == '':
+            continue
+        # print(w1,w2)
 
+        v1 = g.add_vertex() if w1 not in vdict else vdict[w1]
+        vdict[w1] = v1
+        freq[v1] = m.vocab[w1].count
+        v2 = g.add_vertex() if w2 not in vdict else vdict[w2]
+        vdict[w2] = v2
+        freq[v2] = m.vocab[w2].count
+        sim = m.similarity(w1, w2)
+        if sim > 0.1:
+            e = g.add_edge(v1, v2)
+            weight[e] = sim
+        if i > 10000:
+            break
+        i += 1
+    g.vertex_properties['freq'] = freq
+    g.edge_properties['sim'] = weight
+    return g
+
+
+def draw_similarity_graph(g):
+    state = minimize_blockmodel_dl(g)
+    b = state.b
+    pos = sfdp_layout(g, eweight=g.edge_properties['sim'])
+    graph_draw(g, pos, output_size=(1000, 1000), vertex_color=[1, 1, 1, 0],
+               vertex_size=g.vertex_properties['freq'], edge_pen_width=1.2,
+               vcmap=matplotlib.cm.gist_heat_r, output="word_similarity.png")
+
+    state = minimize_blockmodel_dl(g)
+    graph_draw(g, pos=pos, vertex_fill_color=b, vertex_shape=b, output="blocks_mdl.png")
 
 
 def load_model(model_name):
@@ -143,4 +193,9 @@ if __name__ == "__main__":
     for i in range(5):
         print(docs[i])
         print("<<==================>>")
+
+    ## doing graph analysis
+    # g = build_word_graph("MediaCloud_w2v")
+    # g.save("similarity_graph.xml.gz")
+    # draw_similarity_graph(g)
 
