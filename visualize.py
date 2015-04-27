@@ -136,10 +136,10 @@ def load_model(model_name):
 
 if __name__ == "__main__":
     model = load_model("MediaCloud_w2v")
-    t0= time.time()
-    x, ids,  l = cluster_documents(model, 10000)
+    t0 = time.time()
+    x, ids,  l = cluster_documents(model, 100000)
     print("clustered documents in {} seconds".format(time.time()-t0))
-    docs = extract_clustered_docs(ids, l, 1)
+    docs = extract_clustered_docs(ids, l, 9)
     for i in range(5):
         print(docs[i])
         print("<<==================>>")
