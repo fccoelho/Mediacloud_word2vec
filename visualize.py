@@ -20,6 +20,7 @@ from itertools import combinations
 from graph_tool.all import Graph, graph_draw
 from graph_tool.community import minimize_nested_blockmodel_dl, minimize_blockmodel_dl
 from graph_tool.draw import sfdp_layout, draw_hierarchy
+import networkx as nx
 
 
 pattern = re.compile(r"[^-a-zA-Z\s]")
@@ -110,7 +111,7 @@ def cluster_documents(model, ndocs):
 
 def extract_cluster(model, labels, label=1):
     """
-    Extract a cluster from the
+    Extract a cluster from the word vectors
     :param model: Word2vec model
     :param labels: list with cluster labels attributed to each word in the model
     :param label: label if the cluster to extract
@@ -167,6 +168,11 @@ def build_word_graph(model_fname, limiar=0.2):
     g.edge_properties['sim'] = weight
     return g
 
+def nx_word_graph(model_fname, limiar=0.2):
+    g = nx.Graph()
+    m = Word2Vec.load(model_fname)
+    g.add_weighted_edges_from([(w1, w2, m.similarity(w1, w2)) for w1, w2 in combinations(m.vocab.keys(), 2)])
+    return g
 
 def draw_similarity_graph(g):
     state = minimize_blockmodel_dl(g)
@@ -185,15 +191,16 @@ def load_model(model_name):
     return m
 
 if __name__ == "__main__":
-    model = load_model("MediaCloud_w2v")
+    # model = load_model("MediaCloud_w2v")
     t0 = time.time()
-    x, ids,  l = cluster_documents(model, 100000)
-    print("clustered documents in {} seconds".format(time.time()-t0))
-    docs = extract_clustered_docs(ids, l, 9)
-    for i in range(5):
-        print(docs[i])
-        print("<<==================>>")
-
+    # x, ids,  l = cluster_documents(model, 100000)
+    # print("clustered documents in {} seconds".format(time.time()-t0))
+    # docs = extract_clustered_docs(ids, l, 9)
+    # for i in range(15):
+    #     print(docs[i])
+    #     print("<<==================>>")
+    g = nx_word_graph("MediaCloud_w2v")
+    print("criou o grafo de palvras em {} segundos".format(time.time()-t0))
     ## doing graph analysis
     # g = build_word_graph("MediaCloud_w2v")
     # g.save("similarity_graph.xml.gz")

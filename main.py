@@ -186,6 +186,7 @@ def cluster_vectors(model, nwords, method='DBS'):
 
 def extract_cluster(model, labels, label=1):
     """
+    Extract the words associated with the cluster identified by the `label`
 
     :param model: Word2vec model
     :param labels: list with cluster labels attributed to each word in the model
