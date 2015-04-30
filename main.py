@@ -63,11 +63,11 @@ def sentence_gen(limit=20e6):
     """
     con = pymongo.MongoClient('localhost', port=27017)
     col = con.word2vec.frases
-    for doc in col.find({'frases': {'$exists': True}}, {'frases': 1, '_id': 0}, limit=limit):
+    for doc in col.find({'frases': {'$exists': True}}, {'frases': 1, '_id': 0}):
         for frase in doc['frases']:
             if frase == []:
                 continue
-            frase = [w.strip(punctuation) for w in frase if w not in sw]
+            frase = [w.strip(punctuation) for w in frase if w.strip(punctuation) not in sw]
             if frase == []:
                 continue
             # print(frase)
@@ -75,17 +75,17 @@ def sentence_gen(limit=20e6):
             yield frase
 
 
-def bigram_gen(limit=20e6):
+def bigram_gen(limit=100000000):
     for sentence in sentence_gen(limit):
         yield bigram[sentence]
 
 
-def trigram_gen(limit=20e6):
+def trigram_gen(limit=100000000):
     for sentence in sentence_gen(limit):
         yield trigram[sentence]
 
 
-def text_gen(limit=2e6):
+def text_gen(limit=100000000):
     con = pymongo.MongoClient('localhost', port=27017)
     col = con.word2vec.frases
     for doc in col.find({'cleaned_text': {'$exists': True}}, {'cleaned_text': 1, '_id': 0}, limit=limit):
@@ -93,7 +93,7 @@ def text_gen(limit=2e6):
         yield wordpunct_tokenize(text.lower())
 
 
-def train_w2v_model(model_name="MediaCloud_w2v", n=50000, ngram=1):
+def train_w2v_model(model_name="MediaCloud_w2v", n=100000000, ngram=1):
     print("Training model...")
     t0 = time.time()
     if ngram == 2:
@@ -206,7 +206,7 @@ if __name__ == "__main__":
     # bigram = Phrases(sentence_gen(100000))
     print("Calculating Tigrams")
     # trigram = Phrases(bigram[sentence_gen(100000)])
-    # train_w2v_model(n=1000000, ngram=2)
+    train_w2v_model(n=1000000, ngram=1)
     # train_w2v_model(n=1000000, ngram=3)
     # train_w2v_model_per_article()
 
