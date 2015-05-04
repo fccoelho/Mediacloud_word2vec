@@ -203,11 +203,12 @@ if __name__ == "__main__":
     ## Treina MOdelos
     # save_locally()
     print("Calculating Bigrams")
-    # bigram = Phrases(sentence_gen(100000))
+    bigram = Phrases(sentence_gen(100000))
     print("Calculating Tigrams")
-    # trigram = Phrases(bigram[sentence_gen(100000)])
-    train_w2v_model(n=1000000, ngram=1)
-    # train_w2v_model(n=1000000, ngram=3)
+    trigram = Phrases(bigram[sentence_gen(100000)])
+    # train_w2v_model(n=1000000, ngram=1)
+    train_w2v_model(n=1000000, ngram=2)
+    train_w2v_model(n=1000000, ngram=3)
     # train_w2v_model_per_article()
 
     ## Cluster analysis
